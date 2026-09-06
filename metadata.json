@@ -1,0 +1,6 @@
+{
+  "name": "메트로놈 & 템포 체크기",
+  "description": "박자 조절 및 탭 템포 측정 기능을 제공하는 직관적인 웹 메트로놈 애플리케이션",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

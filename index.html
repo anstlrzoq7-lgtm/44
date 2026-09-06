@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>메트로놈 & 템포 체크기</title>
+  <meta name="description" content="박자 조절 및 탭 템포 측정 기능을 제공하는 직관적인 웹 메트로놈 애플리케이션" />
+  <meta property="og:title" content="메트로놈 & 템포 체크기" />
+  <meta property="og:description" content="박자 조절 및 탭 템포 측정 기능을 제공하는 직관적인 웹 메트로놈 애플리케이션" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Google Fonts: Inter (900/Bold) & JetBrains Mono for Bold Typography Theme -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            themeBg: '#0A0A0B',
+            themeSurface: '#151518',
+            themeSurfaceElevated: '#1E1E24',
+            themeAccent: '#00FF66',
+            themeAccentMuted: '#00CC52',
+            themeMuted: '#52525B',
+            themeMutedLight: '#71717A',
+            themeBorder: '#27272A',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg: #0A0A0B;
+      --surface: #151518;
+      --accent: #00FF66;
+      --text: #FFFFFF;
+      --muted: #52525B;
+    }
+
+    html.dark {
+      --bg: #0A0A0B;
+      --surface: #151518;
+      --accent: #00FF66;
+      --text: #FFFFFF;
+      --muted: #52525B;
+    }
+
+    html:not(.dark) {
+      --bg: #F4F4F5;
+      --surface: #FFFFFF;
+      --accent: #00C853;
+      --text: #09090B;
+      --muted: #A1A1AA;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Bold Typography Theme Range Slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      border-radius: 2px;
+      background: var(--surface);
+      border: 1px solid var(--muted);
+      transition: background 0.2s;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -9px;
+      box-shadow: 0 0 12px var(--accent);
+      transition: transform 0.15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+    input[type=range]::-webkit-slider-thumb:active {
+      transform: scale(1.25);
+    }
+    input[type=range]::-moz-range-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      border-radius: 2px;
+      background: var(--surface);
+      border: 1px solid var(--muted);
+    }
+    input[type=range]::-moz-range-thumb {
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    /* Pendulum simulation */
+    .pendulum-container {
+      position: relative;
+      width: 100%;
+      height: 64px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .pendulum-rod {
+      position: absolute;
+      top: 0;
+      width: 3px;
+      height: 52px;
+      background: linear-gradient(to bottom, var(--muted), var(--accent));
+      transform-origin: top center;
+      border-radius: 2px;
+      transition: transform 0.05s linear;
+    }
+    .pendulum-weight {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 15px var(--accent);
+    }
+
+    /* Tap Ripple Animation */
+    .tap-ripple {
+      position: absolute;
+      border-radius: 50%;
+      transform: scale(0);
+      animation: rippleEffect 0.5s ease-out;
+      background: rgba(0, 255, 102, 0.4);
+      pointer-events: none;
+    }
+    @keyframes rippleEffect {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+
+    /* Flash overlay for visual beat */
+    #visualFlashOverlay {
+      pointer-events: none;
+      transition: opacity 0.06s ease-out;
+      opacity: 0;
+    }
+    #visualFlashOverlay.flash-accent {
+      opacity: 0.3;
+      background-color: #00FF66;
+    }
+    #visualFlashOverlay.flash-normal {
+      opacity: 0.15;
+      background-color: #FFFFFF;
+    }
+  </style>
+</head>
+<body class="bg-[#0A0A0B] text-white dark:bg-[#0A0A0B] dark:text-white light:bg-zinc-100 light:text-zinc-900 min-h-screen flex flex-col items-center justify-between p-3 sm:p-6">
+
+  <!-- Visual Beat Flash Overlay -->
+  <div id="visualFlashOverlay" class="fixed inset-0 z-50"></div>
+
+  <!-- Main Viewport Container -->
+  <main class="w-full max-w-xl mx-auto flex flex-col gap-4 sm:gap-5 my-auto" id="appRoot">
+
+    <!-- Header Section (Bold Typography Spec) -->
+    <header class="flex items-center justify-between bg-[#151518] dark:bg-[#151518] light:bg-white rounded-2xl px-5 py-4 border border-[#27272A] dark:border-[#27272A] light:border-zinc-300 shadow-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-[#00FF66]/10 text-[#00FF66] flex items-center justify-center border border-[#00FF66]/30">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 19 21 5 21 12 2"/>
+            <line x1="12" y1="9" x2="16" y2="7"/>
+            <circle cx="12" cy="17" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-mono text-xs tracking-[2px] text-[#00FF66] font-bold uppercase">
+            PULSE // METRONOME
+          </div>
+          <div class="text-[11px] font-mono text-zinc-500 tracking-wider uppercase" id="systemStatusText">
+            SYSTEM READY
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Practice Session Timer -->
+        <div class="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#0A0A0B] dark:bg-[#0A0A0B] light:bg-zinc-200 border border-[#27272A] dark:border-[#27272A] text-xs font-mono text-zinc-300" title="연습 세션 시간">
+          <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-pulse"></span>
+          <span id="sessionTimer">00:00</span>
+        </div>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button id="themeToggleBtn" type="button" aria-label="테마 전환" class="p-2 rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 hover:text-white transition-all border border-[#3F3F46]">
+          <svg id="themeMoonIcon" class="w-4 h-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <svg id="themeSunIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Metronome Display Section (Bold Typography Aesthetic) -->
+    <section class="bg-[#151518] dark:bg-[#151518] light:bg-white rounded-3xl p-6 sm:p-8 border border-[#27272A] dark:border-[#27272A] light:border-zinc-300 shadow-2xl relative overflow-hidden">
+      <!-- Subtle neon grid backdrop -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-[#00FF66]/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Pendulum Oscillator Section -->
+      <div class="pendulum-container mb-2" id="pendulumArea">
+        <div class="pendulum-rod" id="pendulumArm">
+          <div class="pendulum-weight" id="pendulumWeight"></div>
+        </div>
+        <div class="absolute bottom-1 text-[10px] font-mono tracking-[3px] text-zinc-500 uppercase">
+          TEMPO OSCILLATOR
+        </div>
+      </div>
+
+      <!-- Beat Indicator Dots (Visualizer) -->
+      <div class="flex items-center justify-center gap-3 py-2 min-h-[48px]" id="beatDotsContainer">
+        <!-- Dynamically rendered beat dots -->
+      </div>
+
+      <!-- Giant Bold BPM Typography Display -->
+      <div class="flex flex-col items-center justify-center my-3">
+        <div class="flex items-center gap-3 sm:gap-6">
+          <!-- Decrement 1 -->
+          <button id="btnMinusOne" class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#1E1E24] hover:bg-[#27272A] text-zinc-200 hover:text-white flex items-center justify-center font-mono font-bold text-lg border border-[#3F3F46] transition-all active:scale-95 cursor-pointer" title="BPM 1 감소">
+            -1
+          </button>
+
+          <!-- BPM Value Center -->
+          <div class="flex flex-col items-center">
+            <div class="flex items-baseline justify-center">
+              <input 
+                type="number" 
+                id="bpmInput" 
+                min="30" 
+                max="280" 
+                value="120"
+                class="w-40 sm:w-52 text-center font-black text-7xl sm:text-8xl tracking-tighter bg-transparent text-white dark:text-white light:text-zinc-900 border-b-2 border-transparent hover:border-[#3F3F46] focus:border-[#00FF66] focus:outline-none transition-colors select-all leading-none font-sans"
+                aria-label="현재 BPM 입력창"
+              />
+            </div>
+            <div class="font-mono text-xs tracking-[4px] text-zinc-500 uppercase mt-1">
+              BEATS PER MINUTE
+            </div>
+            <!-- Tempo Markings Badge -->
+            <div id="tempoMarkingBadge" class="mt-2 text-xs font-mono font-medium px-3 py-1 rounded-md bg-[#0A0A0B] text-[#00FF66] border border-[#27272A] tracking-wider uppercase">
+              Moderato (108 ~ 120)
+            </div>
+          </div>
+
+          <!-- Increment 1 -->
+          <button id="btnPlusOne" class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#1E1E24] hover:bg-[#27272A] text-zinc-200 hover:text-white flex items-center justify-center font-mono font-bold text-lg border border-[#3F3F46] transition-all active:scale-95 cursor-pointer" title="BPM 1 증가">
+            +1
+          </button>
+        </div>
+
+        <!-- Custom Precision Slider -->
+        <div class="w-full mt-6 px-2">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-[2px]">BPM PRECISION</span>
+            <span class="text-[10px] font-mono text-[#00FF66]" id="sliderBpmDisplay">120 BPM</span>
+          </div>
+          <input 
+            type="range" 
+            id="bpmSlider" 
+            min="30" 
+            max="280" 
+            value="120" 
+            class="w-full"
+            aria-label="템포 BPM 슬라이더"
+          />
+          <div class="flex justify-between text-[10px] text-zinc-500 mt-2 font-mono px-0.5 tracking-wider">
+            <span>30 LARGO</span>
+            <span>120 MODERATO</span>
+            <span>280 PRESTISSIMO</span>
+          </div>
+        </div>
+
+        <!-- Quick Jump & Preset Pills -->
+        <div class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-4 w-full font-mono">
+          <button id="btnMinusFive" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer">
+            -5
+          </button>
+          <button class="tempo-preset px-2.5 py-1 text-xs rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer" data-bpm="60">
+            60 LARGO
+          </button>
+          <button class="tempo-preset px-2.5 py-1 text-xs rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer" data-bpm="80">
+            80 ANDANTE
+          </button>
+          <button class="tempo-preset px-2.5 py-1 text-xs rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer" data-bpm="120">
+            120 MODERATO
+          </button>
+          <button class="tempo-preset px-2.5 py-1 text-xs rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer" data-bpm="144">
+            144 ALLEGRO
+          </button>
+          <button class="tempo-preset px-2.5 py-1 text-xs rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer" data-bpm="180">
+            180 PRESTO
+          </button>
+          <button id="btnPlusFive" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#1E1E24] hover:bg-[#27272A] text-zinc-300 border border-[#3F3F46] transition active:scale-95 cursor-pointer">
+            +5
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Action: Bold Hero Button (START / STOP) -->
+      <div class="mt-6 flex justify-center">
+        <button 
+          id="playPauseBtn" 
+          type="button" 
+          class="w-full sm:w-72 h-16 sm:h-20 rounded-xl bg-[#00FF66] hover:bg-[#15ff72] active:bg-[#00cc52] text-[#0A0A0B] font-black text-xl sm:text-2xl tracking-widest uppercase flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(0,255,102,0.35)] transition-all transform active:scale-98 cursor-pointer font-sans"
+        >
+          <!-- Play Icon -->
+          <svg id="playIcon" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <!-- Pause Icon -->
+          <svg id="pauseIcon" class="w-7 h-7 fill-current hidden" viewBox="0 0 24 24">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+          <span id="playButtonText">START (SPACE)</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Tap Tempo & Controls Grid (2 Columns) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+
+      <!-- Column 1: Tap Tempo Section (Bold Typography Style) -->
+      <section class="bg-[#151518] dark:bg-[#151518] light:bg-white rounded-2xl p-5 border border-[#27272A] dark:border-[#27272A] light:border-zinc-300 shadow-xl flex flex-col justify-between relative overflow-hidden">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-mono text-xs tracking-[2px] text-zinc-400 font-bold uppercase flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span>
+              TAP TEMPO
+            </div>
+            <button id="resetTapBtn" class="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 uppercase tracking-wider underline cursor-pointer" title="탭 기록 초기화">
+              RESET
+            </button>
+          </div>
+
+          <p class="text-[11px] font-mono text-zinc-500 mb-3 uppercase tracking-wide">
+            리듬에 맞춰 탭하거나 <kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#3F3F46]">T</kbd> 키를 누르세요.
+          </p>
+
+          <!-- Tap Button with High-Tech Border Trigger -->
+          <button 
+            id="tapButton" 
+            type="button" 
+            class="relative overflow-hidden w-full h-20 rounded-xl bg-[#1E1E24] hover:bg-[#27272A] text-white font-mono font-black text-xl tracking-[3px] border border-[#3F3F46] active:border-[#00FF66] shadow-lg active:scale-98 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer select-none uppercase"
+          >
+            <div class="flex items-center gap-2 pointer-events-none text-[#00FF66]">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+              </svg>
+              <span>TAP TEMPO</span>
+            </div>
+            <span class="text-[10px] font-mono text-zinc-400 tracking-wider pointer-events-none">CLICK OR PRESS [T]</span>
+          </button>
+        </div>
+
+        <!-- Tap Metrics Panel -->
+        <div class="mt-3 p-3 rounded-xl bg-[#0A0A0B] border border-[#27272A] flex items-center justify-between font-mono">
+          <div>
+            <div class="text-[10px] text-zinc-500 uppercase tracking-widest">CALCULATED BPM</div>
+            <div class="flex items-baseline gap-1.5">
+              <span id="tapBpmDisplay" class="text-3xl font-black text-[#00FF66] tracking-tight">--</span>
+              <span class="text-xs text-zinc-500">BPM</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-[10px] text-zinc-400 tracking-wider uppercase" id="tapCountInfo">0 TAPS (STANDBY)</div>
+            <button id="applyTapToMetronomeBtn" disabled class="mt-1 px-3 py-1 text-xs font-mono font-bold rounded-lg bg-[#00FF66] hover:bg-[#15ff72] disabled:opacity-30 disabled:hover:bg-[#00FF66] text-[#0A0A0B] transition active:scale-95 cursor-pointer disabled:cursor-not-allowed uppercase tracking-wider">
+              APPLY BPM
+            </button>
+          </div>
+        </div>
+
+        <!-- Auto Sync Checkbox -->
+        <label class="flex items-center gap-2 mt-3 text-xs font-mono text-zinc-400 cursor-pointer">
+          <input type="checkbox" id="autoSyncTap" checked class="rounded accent-[#00FF66] w-4 h-4 cursor-pointer" />
+          <span class="tracking-wide">실시간 BPM 자동 동기화 (AUTO SYNC)</span>
+        </label>
+      </section>
+
+      <!-- Column 2: Rhythmic Settings & Audio Customization -->
+      <section class="bg-[#151518] dark:bg-[#151518] light:bg-white rounded-2xl p-5 border border-[#27272A] dark:border-[#27272A] light:border-zinc-300 shadow-xl flex flex-col justify-between gap-3.5">
+        <div>
+          <div class="font-mono text-xs tracking-[2px] text-zinc-400 font-bold uppercase mb-3 flex items-center gap-2">
+            <svg class="w-4 h-4 text-[#00FF66]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+            TIME SIGNATURE & SOUND
+          </div>
+
+          <!-- Time Signature Selector (Bold Selector Items) -->
+          <div class="mb-3">
+            <label class="block text-[10px] font-mono uppercase text-zinc-500 tracking-[2px] mb-1.5">TIME SIGNATURE</label>
+            <div class="grid grid-cols-6 gap-1.5 text-center font-mono font-bold text-xs" id="timeSignatureGroup">
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer" data-beats="1">1/4</button>
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer" data-beats="2">2/4</button>
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer" data-beats="3">3/4</button>
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] text-[#00FF66] font-black border-2 border-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.3)] active:scale-95 cursor-pointer" data-beats="4">4/4</button>
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer" data-beats="5">5/4</button>
+              <button type="button" class="ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer" data-beats="6">6/8</button>
+            </div>
+          </div>
+
+          <!-- Sound Presets Selector -->
+          <div class="mb-3">
+            <label for="soundSelect" class="block text-[10px] font-mono uppercase text-zinc-500 tracking-[2px] mb-1.5">AUDIO PROFILE</label>
+            <select id="soundSelect" class="w-full bg-[#0A0A0B] border border-[#27272A] text-zinc-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-[#00FF66] cursor-pointer">
+              <option value="woodblock">WOODBLOCK (우드블록) - CLASSIC</option>
+              <option value="beep">DIGITAL BEEP (디지털 비프) - SHARP</option>
+              <option value="mechanical">MECHANICAL CLICK (기계식 메트로놈)</option>
+              <option value="rimshot">RIMSHOT / COWBELL (드럼 림샷)</option>
+            </select>
+          </div>
+
+          <!-- Volume & Mute Slider -->
+          <div class="flex items-center gap-3">
+            <button id="muteBtn" type="button" class="p-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] cursor-pointer" title="음소거 토글 (M)">
+              <svg id="volumeHighIcon" class="w-4 h-4 text-[#00FF66]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/>
+              </svg>
+              <svg id="volumeMutedIcon" class="w-4 h-4 hidden text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+              </svg>
+            </button>
+            <div class="flex-1">
+              <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.8" class="w-full" aria-label="볼륨 조절" />
+            </div>
+            <span id="volumePercentage" class="text-xs font-mono text-zinc-400 w-9 text-right font-bold">80%</span>
+          </div>
+        </div>
+
+        <!-- Toggles: Accent First Beat & Visual Screen Flash -->
+        <div class="flex flex-col gap-2 pt-2.5 border-t border-[#27272A] text-xs font-mono text-zinc-400">
+          <label class="flex items-center justify-between cursor-pointer hover:text-zinc-200">
+            <span>DOWNBEAT ACCENT (첫 박자 강조)</span>
+            <input type="checkbox" id="accentFirstBeatToggle" checked class="w-4 h-4 accent-[#00FF66] rounded cursor-pointer" />
+          </label>
+          <label class="flex items-center justify-between cursor-pointer hover:text-zinc-200">
+            <span>VISUAL SCREEN FLASH (화면 깜빡임)</span>
+            <input type="checkbox" id="visualFlashToggle" class="w-4 h-4 accent-[#00FF66] rounded cursor-pointer" />
+          </label>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Keyboard Shortcuts Legend Footer (Tech Minimalist) -->
+    <footer class="bg-[#151518] rounded-xl px-4 py-3 border border-[#27272A] text-[11px] font-mono text-zinc-500 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="font-bold text-zinc-400 uppercase">SHORTCUTS:</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#27272A]">SPACE</kbd> START/STOP</span>
+        <span>•</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#27272A]">T</kbd> TAP</span>
+        <span>•</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#27272A]">↑/↓</kbd> ±1</span>
+        <span>•</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#27272A]">←/→</kbd> ±5</span>
+        <span>•</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF66] border border-[#27272A]">M</kbd> MUTE</span>
+      </div>
+      <div class="text-[10px] text-zinc-600 tracking-wider uppercase">
+        PRECISION WEB AUDIO ENGINE
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- Complete Standalone JavaScript Engine -->
+  <script>
+    (function () {
+      'use strict';
+
+      // 1. STATE & VARIABLES
+      const state = {
+        bpm: 120,
+        beatsPerMeasure: 4,
+        isPlaying: false,
+        currentBeat: 0,
+        soundType: 'woodblock',
+        volume: 0.8,
+        isMuted: false,
+        accentFirstBeat: true,
+        visualFlash: false,
+        autoSyncTap: true,
+      };
+
+      // Web Audio API State
+      let audioCtx = null;
+      let nextNoteTime = 0.0;
+      let timerWorker = null;
+      const lookahead = 25.0; // milliseconds
+      const scheduleAheadTime = 0.1; // seconds
+
+      // Tap Tempo State
+      let tapTimes = [];
+      const MAX_TAP_INTERVAL = 2500; // ms timeout to reset taps
+
+      // Practice Session Timer
+      let sessionSeconds = 0;
+      let sessionInterval = null;
+
+      // 2. DOM ELEMENTS
+      const bpmInput = document.getElementById('bpmInput');
+      const bpmSlider = document.getElementById('bpmSlider');
+      const sliderBpmDisplay = document.getElementById('sliderBpmDisplay');
+      const tempoMarkingBadge = document.getElementById('tempoMarkingBadge');
+      const systemStatusText = document.getElementById('systemStatusText');
+      const btnMinusOne = document.getElementById('btnMinusOne');
+      const btnPlusOne = document.getElementById('btnPlusOne');
+      const btnMinusFive = document.getElementById('btnMinusFive');
+      const btnPlusFive = document.getElementById('btnPlusFive');
+      const playPauseBtn = document.getElementById('playPauseBtn');
+      const playIcon = document.getElementById('playIcon');
+      const pauseIcon = document.getElementById('pauseIcon');
+      const playButtonText = document.getElementById('playButtonText');
+      const beatDotsContainer = document.getElementById('beatDotsContainer');
+      const pendulumArm = document.getElementById('pendulumArm');
+      const visualFlashOverlay = document.getElementById('visualFlashOverlay');
+      const soundSelect = document.getElementById('soundSelect');
+      const volumeSlider = document.getElementById('volumeSlider');
+      const volumePercentage = document.getElementById('volumePercentage');
+      const muteBtn = document.getElementById('muteBtn');
+      const volumeHighIcon = document.getElementById('volumeHighIcon');
+      const volumeMutedIcon = document.getElementById('volumeMutedIcon');
+      const accentFirstBeatToggle = document.getElementById('accentFirstBeatToggle');
+      const visualFlashToggle = document.getElementById('visualFlashToggle');
+      const tapButton = document.getElementById('tapButton');
+      const tapBpmDisplay = document.getElementById('tapBpmDisplay');
+      const tapCountInfo = document.getElementById('tapCountInfo');
+      const applyTapToMetronomeBtn = document.getElementById('applyTapToMetronomeBtn');
+      const autoSyncTap = document.getElementById('autoSyncTap');
+      const resetTapBtn = document.getElementById('resetTapBtn');
+      const sessionTimer = document.getElementById('sessionTimer');
+      const themeToggleBtn = document.getElementById('themeToggleBtn');
+      const themeMoonIcon = document.getElementById('themeMoonIcon');
+      const themeSunIcon = document.getElementById('themeSunIcon');
+
+      // 3. TEMPO MARKING DICTIONARY
+      function getTempoMarking(bpm) {
+        if (bpm < 45) return 'Grave (매우 느리고 장엄하게)';
+        if (bpm < 60) return 'Largo (느리고 폭넓게)';
+        if (bpm < 76) return 'Adagio (느리고 침착하게)';
+        if (bpm < 108) return 'Andante (걷는 속도로 부드럽게)';
+        if (bpm < 120) return 'Moderato (보통 빠르기로)';
+        if (bpm < 156) return 'Allegro (빠르고 경쾌하게)';
+        if (bpm < 176) return 'Vivace (아주 빠르고 활기차게)';
+        if (bpm < 200) return 'Presto (매우 빠르게)';
+        return 'Prestissimo (가장 빠르게)';
+      }
+
+      function updateTempoBadge() {
+        const text = `${getTempoMarking(state.bpm)} • ${state.bpm} BPM`;
+        tempoMarkingBadge.textContent = text;
+        if (sliderBpmDisplay) {
+          sliderBpmDisplay.textContent = `${state.bpm} BPM`;
+        }
+      }
+
+      // 4. BEAT DOTS UI GENERATION
+      function renderBeatDots() {
+        beatDotsContainer.innerHTML = '';
+        for (let i = 0; i < state.beatsPerMeasure; i++) {
+          const dot = document.createElement('div');
+          dot.id = `beat-dot-${i}`;
+          dot.className = `w-4 h-4 sm:w-5 sm:h-5 rounded-full transition-all duration-100 flex items-center justify-center font-mono text-[10px] font-bold ${
+            i === 0 
+              ? 'bg-[#151518] border-2 border-[#00FF66] text-[#00FF66]' 
+              : 'bg-[#151518] border border-[#52525B] text-zinc-500'
+          }`;
+          dot.textContent = i + 1;
+          beatDotsContainer.appendChild(dot);
+        }
+      }
+
+      function highlightBeatDot(beatIndex) {
+        for (let i = 0; i < state.beatsPerMeasure; i++) {
+          const dot = document.getElementById(`beat-dot-${i}`);
+          if (!dot) continue;
+
+          if (i === beatIndex) {
+            if (i === 0 && state.accentFirstBeat) {
+              dot.className = 'w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#00FF66] text-[#0A0A0B] font-black border-2 border-white shadow-[0_0_20px_#00FF66] scale-125 transition-transform duration-75 flex items-center justify-center font-mono text-xs';
+            } else {
+              dot.className = 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#00FF66] text-[#0A0A0B] font-bold border border-white shadow-[0_0_12px_#00FF66] scale-115 transition-transform duration-75 flex items-center justify-center font-mono text-[11px]';
+            }
+          } else {
+            dot.className = `w-4 h-4 sm:w-5 sm:h-5 rounded-full transition-all duration-150 flex items-center justify-center font-mono text-[10px] font-bold ${
+              i === 0 
+                ? 'bg-[#151518] border-2 border-[#00FF66]/50 text-[#00FF66]' 
+                : 'bg-[#151518] border border-[#52525B] text-zinc-500'
+            }`;
+          }
+        }
+
+        // Pendulum simulation
+        if (state.beatsPerMeasure > 1) {
+          const swingAngle = 24;
+          const progress = beatIndex / (state.beatsPerMeasure - 1);
+          const angle = -swingAngle + (progress * 2 * swingAngle);
+          pendulumArm.style.transform = `rotate(${angle}deg)`;
+        } else {
+          pendulumArm.style.transform = beatIndex % 2 === 0 ? 'rotate(-20deg)' : 'rotate(20deg)';
+        }
+
+        // Visual flash trigger
+        if (state.visualFlash) {
+          visualFlashOverlay.className = beatIndex === 0 && state.accentFirstBeat 
+            ? 'fixed inset-0 z-50 flash-accent' 
+            : 'fixed inset-0 z-50 flash-normal';
+          setTimeout(() => {
+            visualFlashOverlay.className = 'fixed inset-0 z-50';
+          }, 70);
+        }
+      }
+
+      // 5. AUDIO SYNTHESIS (WEB AUDIO API)
+      function initAudioContext() {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      }
+
+      function playBeatSound(time, isFirstBeat) {
+        if (state.isMuted || state.volume <= 0) return;
+
+        const effectiveVolume = state.volume;
+
+        switch (state.soundType) {
+          case 'beep':
+            playDigitalBeep(time, isFirstBeat, effectiveVolume);
+            break;
+          case 'mechanical':
+            playMechanicalClick(time, isFirstBeat, effectiveVolume);
+            break;
+          case 'rimshot':
+            playRimshot(time, isFirstBeat, effectiveVolume);
+            break;
+          case 'woodblock':
+          default:
+            playWoodblock(time, isFirstBeat, effectiveVolume);
+            break;
+        }
+      }
+
+      function playWoodblock(time, isFirstBeat, volume) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+
+        const baseFreq = isFirstBeat && state.accentFirstBeat ? 1200 : 840;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq, time);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, time + 0.04);
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(baseFreq, time);
+        filter.Q.setValueAtTime(4, time);
+
+        const peakGain = (isFirstBeat && state.accentFirstBeat ? 1.0 : 0.65) * volume;
+        gain.gain.setValueAtTime(peakGain, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.07);
+      }
+
+      function playDigitalBeep(time, isFirstBeat, volume) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        const freq = isFirstBeat && state.accentFirstBeat ? 1046.5 : 523.25;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+
+        const peakGain = (isFirstBeat && state.accentFirstBeat ? 0.9 : 0.5) * volume;
+        gain.gain.setValueAtTime(peakGain, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.055);
+      }
+
+      function playMechanicalClick(time, isFirstBeat, volume) {
+        const bufferSize = Math.floor(audioCtx.sampleRate * 0.03);
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(isFirstBeat && state.accentFirstBeat ? 1800 : 1200, time);
+
+        const gain = audioCtx.createGain();
+        const peakGain = (isFirstBeat && state.accentFirstBeat ? 1.0 : 0.6) * volume;
+        gain.gain.setValueAtTime(peakGain, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.035);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start(time);
+        noise.stop(time + 0.04);
+      }
+
+      function playRimshot(time, isFirstBeat, volume) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(isFirstBeat && state.accentFirstBeat ? 1600 : 900, time);
+        osc.frequency.exponentialRampToValueAtTime(200, time + 0.03);
+
+        const peakGain = (isFirstBeat && state.accentFirstBeat ? 0.95 : 0.6) * volume;
+        gain.gain.setValueAtTime(peakGain, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.05);
+      }
+
+      // 6. SCHEDULER & LOOKAHEAD LOOP
+      function scheduleNote(beatNumber, time) {
+        const isFirstBeat = (beatNumber === 0);
+        playBeatSound(time, isFirstBeat);
+
+        const delayMs = Math.max(0, (time - audioCtx.currentTime) * 1000);
+        setTimeout(() => {
+          if (state.isPlaying) {
+            highlightBeatDot(beatNumber);
+          }
+        }, delayMs);
+      }
+
+      function nextNote() {
+        const secondsPerBeat = 60.0 / state.bpm;
+        nextNoteTime += secondsPerBeat;
+        state.currentBeat = (state.currentBeat + 1) % state.beatsPerMeasure;
+      }
+
+      function scheduler() {
+        while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+          scheduleNote(state.currentBeat, nextNoteTime);
+          nextNote();
+        }
+      }
+
+      function startMetronome() {
+        initAudioContext();
+        state.isPlaying = true;
+        state.currentBeat = 0;
+        nextNoteTime = audioCtx.currentTime + 0.05;
+
+        timerWorker = setInterval(scheduler, lookahead);
+
+        // Update UI to Active State
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
+        playButtonText.textContent = 'STOP (SPACE)';
+        playPauseBtn.classList.remove('bg-[#00FF66]', 'hover:bg-[#15ff72]', 'shadow-[0_0_25px_rgba(0,255,102,0.35)]');
+        playPauseBtn.classList.add('bg-rose-500', 'hover:bg-rose-400', 'text-white', 'shadow-[0_0_25px_rgba(244,63,94,0.4)]');
+        if (systemStatusText) {
+          systemStatusText.textContent = 'ACTIVE // OSCILLATING';
+          systemStatusText.classList.add('text-[#00FF66]');
+          systemStatusText.classList.remove('text-zinc-500');
+        }
+
+        if (!sessionInterval) {
+          sessionInterval = setInterval(() => {
+            sessionSeconds++;
+            const mins = String(Math.floor(sessionSeconds / 60)).padStart(2, '0');
+            const secs = String(sessionSeconds % 60).padStart(2, '0');
+            sessionTimer.textContent = `${mins}:${secs}`;
+          }, 1000);
+        }
+      }
+
+      function stopMetronome() {
+        state.isPlaying = false;
+        clearInterval(timerWorker);
+        timerWorker = null;
+
+        renderBeatDots();
+        pendulumArm.style.transform = 'rotate(0deg)';
+
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
+        playButtonText.textContent = 'START (SPACE)';
+        playPauseBtn.classList.remove('bg-rose-500', 'hover:bg-rose-400', 'text-white', 'shadow-[0_0_25px_rgba(244,63,94,0.4)]');
+        playPauseBtn.classList.add('bg-[#00FF66]', 'hover:bg-[#15ff72]', 'text-[#0A0A0B]', 'shadow-[0_0_25px_rgba(0,255,102,0.35)]');
+        if (systemStatusText) {
+          systemStatusText.textContent = 'SYSTEM READY';
+          systemStatusText.classList.remove('text-[#00FF66]');
+          systemStatusText.classList.add('text-zinc-500');
+        }
+      }
+
+      function togglePlayPause() {
+        if (state.isPlaying) {
+          stopMetronome();
+        } else {
+          startMetronome();
+        }
+      }
+
+      // 7. BPM CONTROLS
+      function setBpm(newBpm) {
+        const clamped = Math.min(280, Math.max(30, Math.round(newBpm)));
+        state.bpm = clamped;
+        bpmInput.value = clamped;
+        bpmSlider.value = clamped;
+        updateTempoBadge();
+      }
+
+      bpmInput.addEventListener('change', (e) => {
+        setBpm(parseInt(e.target.value, 10) || 120);
+      });
+
+      bpmSlider.addEventListener('input', (e) => {
+        setBpm(parseInt(e.target.value, 10));
+      });
+
+      btnMinusOne.addEventListener('click', () => setBpm(state.bpm - 1));
+      btnPlusOne.addEventListener('click', () => setBpm(state.bpm + 1));
+      btnMinusFive.addEventListener('click', () => setBpm(state.bpm - 5));
+      btnPlusFive.addEventListener('click', () => setBpm(state.bpm + 5));
+
+      document.querySelectorAll('.tempo-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetBpm = parseInt(btn.dataset.bpm, 10);
+          setBpm(targetBpm);
+        });
+      });
+
+      playPauseBtn.addEventListener('click', togglePlayPause);
+
+      // 8. TAP TEMPO ENGINE
+      let lastCalculatedTapBpm = null;
+
+      function handleTap(e) {
+        initAudioContext();
+        const now = performance.now();
+
+        createTapRipple(e);
+
+        // Visual border highlight on tap (as demonstrated in design)
+        tapButton.style.borderColor = '#00FF66';
+        tapButton.style.boxShadow = '0 0 15px rgba(0,255,102,0.4)';
+        setTimeout(() => {
+          tapButton.style.borderColor = '#3F3F46';
+          tapButton.style.boxShadow = 'none';
+        }, 120);
+
+        if (tapTimes.length > 0) {
+          const lastTime = tapTimes[tapTimes.length - 1];
+          const diff = now - lastTime;
+
+          if (diff > MAX_TAP_INTERVAL) {
+            tapTimes = [now];
+            tapCountInfo.textContent = '1 TAP (RECORDING)';
+            tapBpmDisplay.textContent = '--';
+            applyTapToMetronomeBtn.disabled = true;
+            return;
+          }
+        }
+
+        tapTimes.push(now);
+
+        if (tapTimes.length > 10) {
+          tapTimes.shift();
+        }
+
+        if (tapTimes.length >= 2) {
+          const intervals = [];
+          for (let i = 1; i < tapTimes.length; i++) {
+            intervals.push(tapTimes[i] - tapTimes[i - 1]);
+          }
+
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          const calculatedBpm = Math.round(60000 / avgInterval);
+
+          if (calculatedBpm >= 30 && calculatedBpm <= 300) {
+            lastCalculatedTapBpm = Math.min(280, Math.max(30, calculatedBpm));
+            tapBpmDisplay.textContent = lastCalculatedTapBpm;
+            tapCountInfo.textContent = `${tapTimes.length} TAPS • ${Math.round(avgInterval)}MS`;
+            applyTapToMetronomeBtn.disabled = false;
+
+            if (state.autoSyncTap) {
+              setBpm(lastCalculatedTapBpm);
+            }
+          }
+        } else {
+          tapCountInfo.textContent = '1 TAP (AWAITING NEXT)';
+        }
+      }
+
+      function createTapRipple(e) {
+        const rect = tapButton.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'tap-ripple';
+
+        let clientX = rect.left + rect.width / 2;
+        let clientY = rect.top + rect.height / 2;
+
+        if (e && e.clientX && e.clientY) {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = `${size}px`;
+        ripple.style.left = `${clientX - rect.left - size / 2}px`;
+        ripple.style.top = `${clientY - rect.top - size / 2}px`;
+
+        tapButton.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 500);
+      }
+
+      tapButton.addEventListener('mousedown', handleTap);
+      tapButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handleTap(e.touches[0]);
+      }, { passive: false });
+
+      applyTapToMetronomeBtn.addEventListener('click', () => {
+        if (lastCalculatedTapBpm) {
+          setBpm(lastCalculatedTapBpm);
+        }
+      });
+
+      resetTapBtn.addEventListener('click', () => {
+        tapTimes = [];
+        lastCalculatedTapBpm = null;
+        tapBpmDisplay.textContent = '--';
+        tapCountInfo.textContent = '0 TAPS (STANDBY)';
+        applyTapToMetronomeBtn.disabled = true;
+      });
+
+      autoSyncTap.addEventListener('change', (e) => {
+        state.autoSyncTap = e.target.checked;
+      });
+
+      // 9. TIME SIGNATURE & SOUND CONTROLS
+      document.querySelectorAll('.ts-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const beats = parseInt(btn.dataset.beats, 10);
+          state.beatsPerMeasure = beats;
+
+          document.querySelectorAll('.ts-btn').forEach((b) => {
+            b.className = 'ts-btn py-2 rounded-lg bg-[#0A0A0B] hover:bg-[#1E1E24] text-zinc-300 border border-[#27272A] active:scale-95 cursor-pointer';
+          });
+          btn.className = 'ts-btn py-2 rounded-lg bg-[#0A0A0B] text-[#00FF66] font-black border-2 border-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.3)] active:scale-95 cursor-pointer';
+
+          renderBeatDots();
+          if (state.isPlaying) {
+            state.currentBeat = 0;
+          }
+        });
+      });
+
+      soundSelect.addEventListener('change', (e) => {
+        state.soundType = e.target.value;
+      });
+
+      volumeSlider.addEventListener('input', (e) => {
+        state.volume = parseFloat(e.target.value);
+        state.isMuted = state.volume === 0;
+        updateVolumeUI();
+      });
+
+      function updateVolumeUI() {
+        const pct = Math.round(state.volume * 100);
+        volumePercentage.textContent = `${pct}%`;
+        if (state.isMuted || state.volume === 0) {
+          volumeHighIcon.classList.add('hidden');
+          volumeMutedIcon.classList.remove('hidden');
+        } else {
+          volumeHighIcon.classList.remove('hidden');
+          volumeMutedIcon.classList.add('hidden');
+        }
+      }
+
+      muteBtn.addEventListener('click', () => {
+        state.isMuted = !state.isMuted;
+        updateVolumeUI();
+      });
+
+      accentFirstBeatToggle.addEventListener('change', (e) => {
+        state.accentFirstBeat = e.target.checked;
+        renderBeatDots();
+      });
+
+      visualFlashToggle.addEventListener('change', (e) => {
+        state.visualFlash = e.target.checked;
+      });
+
+      // 10. KEYBOARD SHORTCUTS
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+          return;
+        }
+
+        if (e.code === 'Space') {
+          e.preventDefault();
+          togglePlayPause();
+        } else if (e.key === 't' || e.key === 'T' || e.key === 'ㅅ') {
+          e.preventDefault();
+          handleTap();
+        } else if (e.code === 'ArrowUp') {
+          e.preventDefault();
+          setBpm(state.bpm + 1);
+        } else if (e.code === 'ArrowDown') {
+          e.preventDefault();
+          setBpm(state.bpm - 1);
+        } else if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          setBpm(state.bpm + 5);
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          setBpm(state.bpm - 5);
+        } else if (e.key === 'm' || e.key === 'M' || e.key === 'ㅡ') {
+          e.preventDefault();
+          state.isMuted = !state.isMuted;
+          updateVolumeUI();
+        }
+      });
+
+      // 11. THEME SWITCHER (DARK / LIGHT)
+      function initTheme() {
+        const savedTheme = localStorage.getItem('metronome-theme');
+        const isLight = savedTheme === 'light';
+        applyTheme(isLight);
+      }
+
+      function applyTheme(isLight) {
+        const html = document.documentElement;
+        if (isLight) {
+          html.classList.remove('dark');
+          document.body.classList.remove('bg-[#0A0A0B]', 'text-white');
+          document.body.classList.add('bg-zinc-100', 'text-zinc-900');
+          themeSunIcon.classList.add('hidden');
+          themeMoonIcon.classList.remove('hidden');
+          localStorage.setItem('metronome-theme', 'light');
+        } else {
+          html.classList.add('dark');
+          document.body.classList.add('bg-[#0A0A0B]', 'text-white');
+          document.body.classList.remove('bg-zinc-100', 'text-zinc-900');
+          themeSunIcon.classList.remove('hidden');
+          themeMoonIcon.classList.add('hidden');
+          localStorage.setItem('metronome-theme', 'dark');
+        }
+      }
+
+      themeToggleBtn.addEventListener('click', () => {
+        const isCurrentlyDark = document.documentElement.classList.contains('dark');
+        applyTheme(isCurrentlyDark);
+      });
+
+      // 12. INITIALIZATION
+      initTheme();
+      renderBeatDots();
+      updateTempoBadge();
+    })();
+  </script>
+</body>
+</html>
